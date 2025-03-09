@@ -1,16 +1,8 @@
-# Binære filer
+
+
+# Binærfiler og byggeartefakter
 *.exe
 *.out
-*.bin
-
-# Kompilerte pakker
-vendor/
-
-# Logs
 *.log
-
-# Miljøfiler
-.env
-
-# Go modules
-go.sum
+*.test
+*.bin

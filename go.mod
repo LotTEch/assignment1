@@ -1,6 +1,6 @@
-module assignment-1
+module github.com/LotTEch/assignment1
 
-go 1.23.4
+go 1.24.1
 
 require (
 	github.com/gorilla/mux v1.8.1

@@ -1,26 +1,39 @@
 package api
 
 import (
-	"encoding/json"
-	"net/http"
-	"time"
+    "encoding/json"
+    "net/http"
+    
 
-	"assignment-1/utils"
+    "github.com/LotTEch/assignment1/services"
 )
 
-var startTime = time.Now()
+// StatusHandler håndterer /countryinfo/v1/status
+type StatusHandler struct {
+    StatusService services.StatusService
+}
 
-func GetAPIStatus(w http.ResponseWriter, r *http.Request) {
-	countriesStatus := utils.CheckAPIHealth("http://129.241.150.113:8080/v3.1/")
-	populationStatus := utils.CheckAPIHealth("http://129.241.150.113:3500/api/v0.1/")
+func NewStatusHandler(ss services.StatusService) *StatusHandler {
+    return &StatusHandler{
+        StatusService: ss,
+    }
+}
 
-	status := map[string]interface{}{
-		"countriesnowapi":  countriesStatus,
-		"restcountriesapi": populationStatus,
-		"version":          "v1",
-		"uptime":           int(time.Since(startTime).Seconds()),
-	}
+// GetStatus håndterer GET /countryinfo/v1/status
+func (h *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
+    status, err := h.StatusService.GetStatus()
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+    // Returner JSON i henhold til spesifikasjon:
+    // {
+    //   "countriesnowapi": "<http status code for CountriesNow API>",
+    //   "restcountriesapi": "<http status code for RestCountries API>",
+    //   "version": "v1",
+    //   "uptime": <time in seconds since the last re/start of your service>
+    // }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(status)
 }

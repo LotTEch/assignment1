@@ -1,94 +1,109 @@
 package services
 
 import (
-	"encoding/json"
-	"errors"
-	"math"
-	"strconv"
-	"strings"
+    "encoding/json"
+    
+    "fmt"
+    "net/http"
+    
 
-	"assignment-1/models"
-	"assignment-1/utils"
+    "github.com/LotTEch/assignment1/models"
 )
 
-// FetchPopulationData fetches population data for a given country and filters by year range if specified.
-// Henter befolkningsdata for et gitt land og filtrerer etter årstall hvis nødvendig.
-func FetchPopulationData(code string, limit string) (*models.PopulationResponse, error) {
-	url := "http://129.241.150.113:3500/api/v0.1/countries/population?country=" + code
-	response, err := utils.FetchAPI(url)
-	if err != nil {
-		return nil, errors.New("error fetching population data")
-	}
+// PopulationService definerer funksjonalitet for å hente befolkningsdata.
+type PopulationService interface {
+    GetPopulationHistory(countryCode string, startYear, endYear int) (models.PopulationResponse, error)
+}
 
-	// Decode JSON response
-	// Dekoder JSON-svaret
-	var data struct {
-		Error bool                    `json:"error"`
-		Data  []models.PopulationData `json:"data"`
-	}
-	if err := json.Unmarshal(response, &data); err != nil {
-		return nil, errors.New("error decoding JSON")
-	}
-	if len(data.Data) == 0 {
-		return nil, errors.New("no population data found")
-	}
+// populationService er en konkret implementasjon av PopulationService.
+type populationService struct {
+    httpClient        *http.Client
+    restCountriesBase string
+    countriesNowBase  string
+}
 
-	// Filter the correct country based on the provided code
-	// Filtrer riktig land basert på den angitte koden
-	var selectedCountry *models.PopulationData
-	for _, country := range data.Data {
-		if country.Code == code {
-			selectedCountry = &country
-			break
-		}
-	}
-	if selectedCountry == nil {
-		return nil, errors.New("did not find population data for this country")
-	}
+// NewPopulationService oppretter en ny instans av populationService.
+func NewPopulationService(restCountriesBase, countriesNowBase string) PopulationService {
+    return &populationService{
+        httpClient:        &http.Client{},
+        restCountriesBase: restCountriesBase,
+        countriesNowBase:  countriesNowBase,
+    }
+}
 
-	// Handle limit as a year interval (e.g., "2010-2015")
-	// Håndter limit som et datointervall (f.eks. "2010-2015")
-	if limit != "" {
-		years := strings.Split(limit, "-")
-		if len(years) == 2 {
-			startYear, err1 := strconv.Atoi(years[0])
-			endYear, err2 := strconv.Atoi(years[1])
-			if err1 != nil || err2 != nil || startYear > endYear {
-				return nil, errors.New("invalid limit value, use the format: ?limit=startYear-endYear")
-			}
+// GetPopulationHistory henter befolkningsdata fra eksterne API-er og returnerer et "models.PopulationResponse".
+func (ps *populationService) GetPopulationHistory(countryCode string, startYear, endYear int) (models.PopulationResponse, error) {
+    url := fmt.Sprintf("%s/alpha/%s", ps.restCountriesBase, countryCode)
 
-			// Filter out entries within the specified interval
-			// Filtrer ut årstall innenfor intervallet
-			var filteredCounts []models.PopulationValue
-			for _, entry := range selectedCountry.PopulationCounts {
-				if entry.Year >= startYear && entry.Year <= endYear {
-					filteredCounts = append(filteredCounts, entry)
-				}
-			}
-			selectedCountry.PopulationCounts = filteredCounts
-		} else {
-			return nil, errors.New("invalid limit value, use the format: ?limit=startYear-endYear")
-		}
-	}
+    resp, err := ps.httpClient.Get(url)
+    if err != nil {
+        return models.PopulationResponse{}, fmt.Errorf("error retrieving population data from RestCountries: %w", err)
+    }
+    defer resp.Body.Close()
 
-	// Calculate the average population value
-	// Kalkuler gjennomsnittet av befolkningstallene
-	var sum int
-	var count int
-	for _, entry := range selectedCountry.PopulationCounts {
-		sum += entry.Value
-		count++
-	}
+    if resp.StatusCode != http.StatusOK {
+        return models.PopulationResponse{}, fmt.Errorf("RestCountries replied with status: %d", resp.StatusCode)
+    }
 
-	mean := 0
-	if count > 0 {
-		mean = int(math.Round(float64(sum) / float64(count)))
-	}
+    var restCountriesData struct {
+        Population int `json:"population"`
+    }
 
-	responseData := &models.PopulationResponse{
-		Mean:   mean,
-		Values: selectedCountry.PopulationCounts,
-	}
+    err = json.NewDecoder(resp.Body).Decode(&restCountriesData)
+    if err != nil {
+        return models.PopulationResponse{}, fmt.Errorf("error when unmarshaling RestCountries data: %w", err)
+    }
 
-	return responseData, nil
+    url = fmt.Sprintf("%s/countries/population/historical", ps.countriesNowBase)
+    req, err := http.NewRequest(http.MethodPost, url, nil)
+    if err != nil {
+        return models.PopulationResponse{}, fmt.Errorf("error creating request to CountriesNow: %w", err)
+    }
+
+    resp, err = ps.httpClient.Do(req)
+    if err != nil {
+        return models.PopulationResponse{}, fmt.Errorf("error retrieving population data from CountriesNow: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return models.PopulationResponse{}, fmt.Errorf("CountriesNow responded with status: %d", resp.StatusCode)
+    }
+
+    var countriesNowData struct {
+        Data []struct {
+            Year  int `json:"year"`
+            Value int `json:"value"`
+        } `json:"data"`
+    }
+
+    err = json.NewDecoder(resp.Body).Decode(&countriesNowData)
+    if err != nil {
+        return models.PopulationResponse{}, fmt.Errorf("error when unmarshaling CountriesNow data: %w", err)
+    }
+
+    var filteredData []models.PopulationValue
+    for _, d := range countriesNowData.Data {
+        if (startYear == 0 || d.Year >= startYear) && (endYear == 0 || d.Year <= endYear) {
+            filteredData = append(filteredData, models.PopulationValue{
+                Year:  d.Year,
+                Value: d.Value,
+            })
+        }
+    }
+
+    sum := 0
+    for _, d := range filteredData {
+        sum += d.Value
+    }
+
+    mean := 0
+    if len(filteredData) > 0 {
+        mean = sum / len(filteredData)
+    }
+
+    return models.PopulationResponse{
+        Mean:   mean,
+        Values: filteredData,
+    }, nil
 }

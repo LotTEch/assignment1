@@ -1,27 +1,33 @@
 package utils
 
-// Convert a map of languages into a simple map[string]string
-func ExtractLanguages(languages map[string]interface{}) map[string]string {
-	result := make(map[string]string)
-	for key, value := range languages {
-		result[key] = value.(string)
-	}
-	return result
+import (
+	"log"
+	"time"
+)
+
+// UptimeTracker kan brukes til å spore hvor lenge applikasjonen har kjørt.
+type UptimeTracker struct {
+	StartTime time.Time
 }
 
-// Convert an array of interfaces into a string array
-func ExtractStringArray(data []interface{}) []string {
-	var result []string
-	for _, value := range data {
-		result = append(result, value.(string))
+// NewUptimeTracker initialiserer en ny UptimeTracker.
+func NewUptimeTracker() *UptimeTracker {
+	return &UptimeTracker{
+		StartTime: time.Now(),
 	}
-	return result
 }
 
-// Extract the first element from a string array
-func ExtractFirstString(data []interface{}) string {
-	if len(data) > 0 {
-		return data[0].(string)
-	}
-	return ""
+// GetUptimeSeconds returnerer hvor mange sekunder som har gått siden StartTime.
+func (u *UptimeTracker) GetUptimeSeconds() int64 {
+	return int64(time.Since(u.StartTime).Seconds())
+}
+
+// LogInfo er et eksempel på en hjelpefunksjon for logging.
+func LogInfo(message string) {
+	log.Printf("[INFO] %s\n", message)
+}
+
+// LogError er et eksempel på en hjelpefunksjon for feillogging.
+func LogError(err error) {
+	log.Printf("[ERROR] %v\n", err)
 }
