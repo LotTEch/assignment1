@@ -1,25 +1,16 @@
 package utils
 
 import (
-    "log"
-    "os"
-
-    "github.com/joho/godotenv"
+	"log"
+	"os"
 )
 
-// LoadEnv laster miljøvariabler fra .env-filen.
-func LoadEnv() {
-    err := godotenv.Load()
-    if err != nil {
-        log.Println("No .env file found")
-    }
-}
-
-// GetEnvString henter en strengverdi fra miljøvariabler eller returnerer en default-verdi.
-func GetEnvString(key, defaultValue string) string {
-    value, exists := os.LookupEnv(key)
-    if !exists {
-        return defaultValue
-    }
-    return value
+// GetEnv henter en environment-variabel eller returnerer en defaultverdi hvis den ikke finnes
+func GetEnv(key, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Printf("Env variable %s not set, using default '%s'\n", key, fallback)
+		return fallback
+	}
+	return value
 }

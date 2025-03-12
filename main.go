@@ -4,51 +4,48 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 
-	"github.com/LotTEch/assignment1/api"
-	"github.com/LotTEch/assignment1/services"
-	"github.com/LotTEch/assignment1/utils"
+	"github.com/LotTEch/assignment1/api"      // Oppdater med riktig modulbane
+	"github.com/LotTEch/assignment1/services" // Importerer status-service for å sette startTime
 )
 
+// Variabel for å spore oppstartstidspunkt (for /status-endepunktet)
+var startTime time.Time
+
 func main() {
-	// 1. Last .env-variabler (om filen finnes)
-	utils.LoadEnv()
+	// Laster environment-variabler fra .env (hvis finnes)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found or error reading .env file.")
+	}
 
-	// 2. Hent nødvendige konfigurasjoner
-	port := utils.GetEnvString("PORT", "")
+	// Setter starttid
+	startTime = time.Now()
+	// Setter oppstartstid i status-servicen slik at den kan beregne oppetid
+	services.SetStartTime(startTime)
+
+	// Henter port fra .env, eller bruker 8080 som default
+	port := os.Getenv("PORT")
 	if port == "" {
-		log.Fatal("PORT environment variable is not set")
-	}
-	restCountriesURL := utils.GetEnvString("RESTCOUNTRIES_URL", "")
-	if restCountriesURL == "" {
-		log.Fatal("RESTCOUNTRIES_URL environment variable is not set")
-	}
-	countriesNowURL := utils.GetEnvString("COUNTRIESNOW_URL", "")
-	if countriesNowURL == "" {
-		log.Fatal("COUNTRIESNOW_URL environment variable is not set")
+		port = "8080"
 	}
 
-	// 3. Opprett services, og send inn base-URLer for eksterne API-er
-	countryService := services.NewCountryService(restCountriesURL, countriesNowURL)
-	populationService := services.NewPopulationService(restCountriesURL, countriesNowURL)
-	statusService := services.NewStatusService(time.Now(), restCountriesURL, countriesNowURL)
-
-	// 4. Opprett handlers
-	countryHandler := api.NewCountryHandler(countryService)
-	populationHandler := api.NewPopulationHandler(populationService)
-	statusHandler := api.NewStatusHandler(statusService)
-
-	// 5. Sett opp router
+	// Oppretter router (gorilla/mux)
 	r := mux.NewRouter()
-	r.HandleFunc("/countryinfo/v1/info/{two_letter_country_code}", countryHandler.GetCountryInfo).Methods("GET")
-	r.HandleFunc("/countryinfo/v1/population/{two_letter_country_code}", populationHandler.GetPopulationData).Methods("GET")
-	r.HandleFunc("/countryinfo/v1/status", statusHandler.GetStatus).Methods("GET")
 
-	// 6. Start serveren
+	// Registrer endepunkter fra våre API-handlere
+	api.RegisterCountryInfoRoutes(r)
+	api.RegisterPopulationRoutes(r)
+	api.RegisterStatusRoutes(r)
+
+	// Kjør serveren
 	addr := fmt.Sprintf(":%s", port)
-	log.Printf("Starting server on %s ...", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	log.Printf("Starting server on port %s...\n", port)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Fatalf("Could not start server: %v\n", err)
+	}
 }

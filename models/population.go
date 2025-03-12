@@ -1,13 +1,12 @@
 package models
 
-// PopulationValue representerer befolkningsdata for et gitt år.
-type PopulationValue struct {
-    Year  int `json:"year"`
-    Value int `json:"value"`
+// PopulationResponse er datastrukturen for /population-endepunktets respons
+type PopulationResponse struct {
+	Mean   int                     `json:"mean"`
+	Values []PopulationYearValue   `json:"values"`
 }
 
-// PopulationResponse representerer responsen for befolkningsdata.
-type PopulationResponse struct {
-    Mean   int              `json:"mean"`
-    Values []PopulationValue `json:"values"`
+type PopulationYearValue struct {
+	Year  int `json:"year"`
+	Value int `json:"value"`
 }

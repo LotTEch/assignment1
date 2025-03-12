@@ -1,67 +1,63 @@
 package api
 
 import (
-    "encoding/json"
-    "net/http"
-    "strconv"
+	"encoding/json"
+	"log"
+	"net/http"
+	"strconv"
 
-    "github.com/gorilla/mux"
+	"github.com/gorilla/mux"
 
-    "github.com/LotTEch/assignment1/services"
+	"github.com/LotTEch/assignment1/services"
+	"github.com/LotTEch/assignment1/utils"
 )
 
-// CountryHandler håndterer /countryinfo/v1/info/{:two_letter_country_code}
-type CountryHandler struct {
-    CountryService services.CountryService
+// RegisterCountryInfoRoutes registrerer ruter relatert til land-info-endepunktet.
+func RegisterCountryInfoRoutes(r *mux.Router) {
+	r.HandleFunc("/countryinfo/v1/info/", infoRootHandler).Methods(http.MethodGet)
+	r.HandleFunc("/countryinfo/v1/info/{twoLetterCode}", getCountryInfoHandler).Methods(http.MethodGet)
 }
 
-func NewCountryHandler(cs services.CountryService) *CountryHandler {
-    return &CountryHandler{
-        CountryService: cs,
-    }
+// infoRootHandler håndterer kall til /countryinfo/v1/info/ uten ekstra parametere
+func infoRootHandler(w http.ResponseWriter, r *http.Request) {
+	// Viser en enkel hjelpetekst
+	message := `{"message": "Use /countryinfo/v1/info/{ISO2Code}?limit=10 to get country info. Example: /countryinfo/v1/info/no?limit=5"}`
+	utils.WriteJSONResponse(w, http.StatusOK, []byte(message))
 }
 
-// GetCountryInfo håndterer GET /countryinfo/v1/info/{:two_letter_country_code}?limit=10
-func (h *CountryHandler) GetCountryInfo(w http.ResponseWriter, r *http.Request) {
-    // Hent landkoden
-    vars := mux.Vars(r)
-    countryCode := vars["two_letter_country_code"]
-    if len(countryCode) == 0 {
-        http.Error(w, "Country code missing path", http.StatusBadRequest)
-        return
-    }
+// getCountryInfoHandler håndterer kall til /countryinfo/v1/info/{:two_letter_country_code}{?limit=10}
+func getCountryInfoHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	code := vars["twoLetterCode"]
 
-    // Hent ev. limit-parameter
-    limitQuery := r.URL.Query().Get("limit")
-    var limit int
-    var err error
+	// Henter optional limit-query
+	limitStr := r.URL.Query().Get("limit")
+	var limit int
+	var err error
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			log.Println("Invalid limit query parameter")
+			utils.WriteJSONResponse(w, http.StatusBadRequest, []byte(`{"error": "limit parameter must be a number"}`))
+			return
+		}
+	}
 
-    if limitQuery != "" {
-        limit, err = strconv.Atoi(limitQuery)
-        if err != nil {
-            http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
-            return
-        }
-    }
+	// Kall service-laget for å hente info
+	countryInfo, serviceErr := services.GetCountryInfo(code, limit)
+	if serviceErr != nil {
+		log.Printf("Error fetching country info: %v\n", serviceErr)
+		utils.WriteJSONResponse(w, http.StatusBadRequest, []byte(`{"error": "`+serviceErr.Error()+`"}`))
+		return
+	}
 
-    // Kall service-laget
-    countryInfo, err := h.CountryService.GetCountryInfo(countryCode, limit)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+	// Konverterer struct til JSON
+	respBytes, err := json.Marshal(countryInfo)
+	if err != nil {
+		log.Printf("Error marshalling country info: %v\n", err)
+		utils.WriteJSONResponse(w, http.StatusInternalServerError, []byte(`{"error": "failed to marshal country info"}`))
+		return
+	}
 
-    // Returner JSON i henhold til spesifikasjon:
-    // {
-    //   "name": "Norway",
-    //   "continents": ["Europe"],
-    //   "population": 4700000,
-    //   "languages": {"nno":"Norwegian Nynorsk","nob":"Norwegian Bokmål","smi":"Sami"},
-    //   "borders": ["FIN","SWE","RUS"],
-    //   "flag": "https://flagcdn.com/w320/no.png",
-    //   "capital": "Oslo",
-    //   "cities": ["Abelvaer","Adalsbruk",...]
-    // }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(countryInfo)
+	utils.WriteJSONResponse(w, http.StatusOK, respBytes)
 }

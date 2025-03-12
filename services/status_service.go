@@ -1,45 +1,68 @@
 package services
 
 import (
-    "time"
-	"net/http"
-    "github.com/LotTEch/assignment1/utils"
+	
+	"time"
+
+	"github.com/LotTEch/assignment1/utils"
 )
 
-// StatusService definerer funksjonalitet for å hente statusdata.
-type StatusService interface {
-    GetStatus() (map[string]interface{}, error)
+// StatusInfo representerer JSON-strukturen vi sender tilbake på /status
+type StatusInfo struct {
+	CountriesNowAPI string  `json:"countriesnowapi"`
+	RestCountriesAPI string  `json:"restcountriesapi"`
+	Version          string  `json:"version"`
+	Uptime           float64 `json:"uptime"`
 }
 
-// statusService er en konkret implementasjon av StatusService.
-type statusService struct {
-    httpClient        *http.Client
-    startTime         time.Time
-    restCountriesBase string
-    countriesNowBase  string
+// globalStartTime er en package-variabel som settes fra main eller lignende.
+// For enkelthet, kan du hente fra main. Her viser vi bare konseptuelt.
+var globalStartTime time.Time
+
+// SetStartTime settes fra main.go (om du ønsker). Ellers kan du bare referere globalt.
+func SetStartTime(t time.Time) {
+	globalStartTime = t
 }
 
-// NewStatusService oppretter en ny instans av statusService.
-func NewStatusService(startTime time.Time, restCountriesBase, countriesNowBase string) StatusService {
-    return &statusService{
-        httpClient:        &http.Client{},
-        startTime:         startTime,
-        restCountriesBase: restCountriesBase,
-        countriesNowBase:  countriesNowBase,
-    }
+// GetStatusInfo sjekker status for eksterne tjenester og regner ut oppetid.
+func GetStatusInfo() StatusInfo {
+	// Sjekk CountriesNow
+	cnStatus := checkCountriesNow()
+
+	// Sjekk RestCountries
+	rcStatus := checkRestCountries()
+
+	// Oppetid
+	uptime := time.Since(globalStartTime).Seconds()
+
+	return StatusInfo{
+		CountriesNowAPI: cnStatus,
+		RestCountriesAPI: rcStatus,
+		Version:         "v1",
+		Uptime:          uptime,
+	}
 }
 
-// GetStatus henter statusdata fra eksterne API-er og returnerer et statuskart.
-func (ss *statusService) GetStatus() (map[string]interface{}, error) {
-    restCountriesStatus := utils.CheckAPIHealth(ss.restCountriesBase)
-    countriesNowStatus := utils.CheckAPIHealth(ss.countriesNowBase)
+// checkCountriesNow gjør et kjapt kall for å sjekke status
+func checkCountriesNow() string {
+	testURL := "http://129.241.150.113:3500/api/v0.1/countries/codes" // Kan være et greit testendepunkt
+	resp, err := utils.HttpClient.Get(testURL)
+	if err != nil {
+		return "ERROR"
+	}
+	defer resp.Body.Close()
 
-    status := map[string]interface{}{
-        "restcountriesapi": restCountriesStatus,
-        "countriesnowapi":  countriesNowStatus,
-        "version":          "v1",
-        "uptime":           int(time.Since(ss.startTime).Seconds()),
-    }
+	return resp.Status
+}
 
-    return status, nil
+// checkRestCountries gjør et kjapt kall for å sjekke status
+func checkRestCountries() string {
+	testURL := "http://129.241.150.113:8080/v3.1/all?fields=ccn3" // Minimal data
+	resp, err := utils.HttpClient.Get(testURL)
+	if err != nil {
+		return "ERROR"
+	}
+	defer resp.Body.Close()
+
+	return resp.Status
 }

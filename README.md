@@ -1,35 +1,44 @@
-# Assignment 1 – Country Information and Population API
+# Assignment 1 - CountryInfo REST API
 
-**[English](#english) | [Norsk](#norsk)**
+This is a project for a Go-based REST service that meets the following requirements:
 
----
+- **/countryinfo/v1/info/{:two_letter_country_code}{?limit=10}**  
+  Returns general country information (name, continents, population, languages, borders, flag, capital city, and a list of cities).
+  - `limit` is optional and restricts the number of cities.
 
-<a id="english"></a>
+- **/countryinfo/v1/population/{:two_letter_country_code}{?limit=startYear-endYear}**  
+  Returns historical population data for the country, as well as an average value.  
+  - `startYear` and `endYear` are optional. If not specified, all available years are returned.
 
-## English
+- **/countryinfo/v1/status/**  
+  Shows the status of dependent external services (CountriesNow and RestCountries) and the uptime of our service.
 
-### Overview
-This is a REST web application built with Go. It retrieves country information and historical population data from external APIs, and provides a status endpoint for monitoring the availability of these external services.
+## Setup
 
-**Key Features:**
-1. **Country Info Endpoint**  
-   - Returns general country information including name, continent, population, languages, borders, flag, capital, and an optional limited list of cities.
-2. **Population Data Endpoint**  
-   - Returns historical population data for a given country and calculates the average population over a specified year range.
-3. **Status Endpoint**  
-   - Reports the health status (HTTP status codes) of external APIs, along with service version and uptime.
+1. Clone/copy the project.
+2. (Optional) Add a `.env` file with `PORT=8080` if you want to change the port.
+3. Run `go mod tidy` to download any missing dependencies.
+4. Start the service with `go run main.go`.
 
-### Requirements
-- [Go](https://golang.org/) (1.18 or later recommended)
-- Environment variables set in a `.env` file (see [Setup](#setup) below)
-- Internet connection to reach external APIs
+## Usage
 
-### External APIs
-1. **REST Countries API**  
-   - Hosted at: `http://129.241.150.113:8080/v3.1/`
-2. **CountriesNow API**  
-   - Hosted at: `http://129.241.150.113:3500/api/v0.1/`
+- **GET** `/countryinfo/v1/info/`  
+  Displays a help text.
+- **GET** `/countryinfo/v1/info/no`  
+  Shows general info about Norway (ISO2 code: NO).
+  - Optional: `?limit=5` to retrieve only 5 cities.
 
+- **GET** `/countryinfo/v1/population/no`  
+  Shows all available historical population data for Norway.  
+  - Optional: `?limit=2010-2015` to only get data for the period 2010–2015.
 
+- **GET** `/countryinfo/v1/status/`  
+  Displays a JSON containing the status of CountriesNow, RestCountries, the service version, and uptime.
 
+## Examples of PowerShell Commands
 
+Below are some examples of how you can use PowerShell to send requests to the API and format the response:
+
+## powershell
+### Fetch general info about Norway with a limit of 10 cities
+Invoke-WebRequest -Uri "http://localhost:8080/countryinfo/v1/info/no?limit=10" | ConvertFrom-Json | Format-List

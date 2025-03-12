@@ -1,37 +1,29 @@
 package utils
 
 import (
-    "errors"
-    "io/ioutil"
-    "net/http"
-    "time"
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"time"
 )
 
-var client = &http.Client{
-    Timeout: 10 * time.Second,
+// HttpClient er en global HTTP-klient med timeout
+var HttpClient = &http.Client{
+	Timeout: 10 * time.Second,
 }
 
-// FetchAPI henter data fra en gitt URL.
-func FetchAPI(url string) ([]byte, error) {
-    resp, err := client.Get(url)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
+// DoPostJSON utfører en POST med JSON-body
+func DoPostJSON(url string, body interface{}) (*http.Response, error) {
+	jsonBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
 
-    if resp.StatusCode != http.StatusOK {
-        return nil, errors.New("failed to fetch data: " + resp.Status)
-    }
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 
-    return ioutil.ReadAll(resp.Body)
-}
-
-// CheckAPIHealth sjekker helsestatusen til en gitt URL.
-func CheckAPIHealth(url string) int {
-    resp, err := client.Get(url)
-    if err != nil {
-        return 500
-    }
-    defer resp.Body.Close()
-    return resp.StatusCode
+	return HttpClient.Do(req)
 }

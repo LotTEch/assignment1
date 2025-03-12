@@ -1,39 +1,36 @@
 package api
 
 import (
-    "encoding/json"
-    "net/http"
-    
+	"encoding/json"
+	"net/http"
+	
 
-    "github.com/LotTEch/assignment1/services"
+	"github.com/gorilla/mux"
+
+	"github.com/LotTEch/assignment1/services"
+	"github.com/LotTEch/assignment1/utils"
 )
 
-// StatusHandler håndterer /countryinfo/v1/status
-type StatusHandler struct {
-    StatusService services.StatusService
+// Du trenger en referanse til startTime. For enkelhets skyld kan du enten
+// - Hente den fra main via en global variabel, eller
+// - Legge i en package-variabel.
+// Her bruker vi en service-funksjon for å hente oppetid.
+
+func RegisterStatusRoutes(r *mux.Router) {
+	r.HandleFunc("/countryinfo/v1/status/", statusHandler).Methods(http.MethodGet)
 }
 
-func NewStatusHandler(ss services.StatusService) *StatusHandler {
-    return &StatusHandler{
-        StatusService: ss,
-    }
-}
+// statusHandler håndterer kall til /countryinfo/v1/status/
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	// Hent statusinformasjon fra service
+	statusInfo := services.GetStatusInfo()
 
-// GetStatus håndterer GET /countryinfo/v1/status
-func (h *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
-    status, err := h.StatusService.GetStatus()
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+	// Konverterer struct til JSON
+	respBytes, err := json.Marshal(statusInfo)
+	if err != nil {
+		utils.WriteJSONResponse(w, http.StatusInternalServerError, []byte(`{"error":"failed to marshal status info"}`))
+		return
+	}
 
-    // Returner JSON i henhold til spesifikasjon:
-    // {
-    //   "countriesnowapi": "<http status code for CountriesNow API>",
-    //   "restcountriesapi": "<http status code for RestCountries API>",
-    //   "version": "v1",
-    //   "uptime": <time in seconds since the last re/start of your service>
-    // }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(status)
+	utils.WriteJSONResponse(w, http.StatusOK, respBytes)
 }
