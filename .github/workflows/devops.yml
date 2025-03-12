@@ -2,7 +2,7 @@ name: DevopsWF
 
 on:
   push:
-    branches: [main, devops]
+    branches: [master, devops]
 
 jobs:
   # Job 1: Run tests
